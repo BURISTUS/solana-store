@@ -1,43 +1,112 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::instruction::{AccountMeta, Instruction};
-use solana_program_test::*;
-use solana_sdk::{
-    account::{Account, ReadableAccount},
-    pubkey::Pubkey,
-    signature::Signer,
-    transaction::Transaction,
+use solana_store::{entrypoint::process_instruction, id, instruction::PriceInstruction};
+use solana_store::{
+    state::{Price, Settings},
+    PRICE_SEED,
 };
-use solana_store::processor::{process_instruction, InstructionData, State};
+use solana_program::pubkey::Pubkey;
+use solana_program::system_instruction;
+use solana_program_test::{processor, tokio, ProgramTest, ProgramTestContext};
+use solana_sdk::signature::{Keypair, Signer};
+use solana_sdk::transaction::Transaction;
+
+struct Env {
+    ctx: ProgramTestContext,
+    admin: Keypair,
+    user: Keypair,
+}
+
+impl Env {
+    async fn new() -> Self {
+        let program_test = ProgramTest::new("solana_store", id(), processor!(process_instruction));
+        let mut ctx = program_test.start_with_context().await;
+
+        let admin = Keypair::new();
+        let user = Keypair::new();
+
+        // credit admin and user accounts
+        ctx.banks_client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[
+                    system_instruction::transfer(
+                        &ctx.payer.pubkey(),
+                        &admin.pubkey(),
+                        1_000_000_000,
+                    ),
+                    system_instruction::transfer(
+                        &ctx.payer.pubkey(),
+                        &user.pubkey(),
+                        1_000_000_000,
+                    ),
+                ],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer],
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+
+        // init settings account
+        let tx = Transaction::new_signed_with_payer(
+            &[PriceInstruction::update_settings(
+                &admin.pubkey(),
+                admin.pubkey().to_bytes(),
+                25,
+            )],
+            Some(&admin.pubkey()),
+            &[&admin],
+            ctx.last_blockhash,
+        );
+        ctx.banks_client.process_transaction(tx).await.unwrap();
+
+        let acc =
+            ctx.banks_client.get_account(Settings::get_settings_pub()).await.unwrap().unwrap();
+        let settings = Settings::try_from_slice(acc.data.as_slice()).unwrap();
+        assert_eq!(settings.updated_price, 25);
+
+        let space = Price { counter: 0, value: 0 }.try_to_vec().unwrap().len();
+        let rent = ctx.banks_client.get_rent().await.unwrap();
+        let lamports = rent.minimum_balance(space);
+        let ix = system_instruction::create_account_with_seed(
+            &user.pubkey(),
+            &Price::get_price_pubkey(&user.pubkey()),
+            &user.pubkey(),
+            PRICE_SEED,
+            lamports,
+            space as u64,
+            &id(),
+        );
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&user.pubkey()),
+            &[&user],
+            ctx.last_blockhash,
+        );
+        ctx.banks_client.process_transaction(tx).await.unwrap();
+
+        Env { ctx, admin, user }
+    }
+}
+
 
 #[tokio::test]
-async fn test_program() {
-    let program_id = Pubkey::new_unique();
-    let state_pubkey = Pubkey::new_unique();
+async fn test_update_settings() {
+    let mut env = Env::new().await;
 
-    let mut program_test = ProgramTest::new("solana_store", program_id, processor!(process_instruction));
-    let data = State { counter: 0, price: 10}.try_to_vec().unwrap();
-    program_test.add_account(state_pubkey, Account { lamports: 77777, data, owner: program_id, ..Account::default() });
+    let tx = Transaction::new_signed_with_payer(
+        &[PriceInstruction::update_settings(
+            &env.admin.pubkey(),
+            *&env.admin.pubkey().to_bytes(),
+            11,
+        )],
+        Some(&env.admin.pubkey()),
+        &[&env.admin],
+        env.ctx.last_blockhash,
+    );
+    env.ctx.banks_client.process_transaction(tx).await.unwrap();
 
-    let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
-
-    // Call program 10 times
-    for i in 0..10 {
-        let init_data = InstructionData { updated_price: 109 + i as u64 }.try_to_vec().unwrap();
-        let mut transaction = Transaction::new_with_payer(
-            &[Instruction::new_with_bytes(program_id, &init_data, vec![AccountMeta::new(state_pubkey, false)])],
-            Some(&payer.pubkey()),
-        );
-        transaction.sign(&[&payer], recent_blockhash);
-        banks_client.process_transaction(transaction).await.unwrap();
-    }
-
-    // Check counter in state account
-    let state_account = banks_client.get_account(state_pubkey).await.unwrap().unwrap();
-    println!("state_account: {:?}", state_account);
-    let data = state_account.data();
-    println!("z1: {:?}", data);
-    let new_state = State::try_from_slice(data).unwrap();
-    println!("new state: {:?}", new_state);
-
-    assert_eq!(new_state.counter, 10);
+    let acc =
+        env.ctx.banks_client.get_account(Settings::get_settings_pub()).await.unwrap().unwrap();
+    let settings = Settings::try_from_slice(&acc.data.as_slice()).unwrap();
+    assert_eq!(settings.updated_price, 11);
 }
