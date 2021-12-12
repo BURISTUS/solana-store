@@ -3,40 +3,93 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
+    program::invoke_signed,
     pubkey::Pubkey,
+    system_instruction,
+    sysvar::{rent::Rent, Sysvar},
 };
 
+use crate::{id, SETTINGS_SEED};
+use crate::{instruction::PriceInstruction, state::Price, state::Settings};
+pub struct Processor;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub struct State {
-    pub counter: u16,
-    pub price: u64,
-}
+impl Processor {
+    pub fn process(_program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
+        msg!("price: {:?}", input);
+        let instruction = PriceInstruction::try_from_slice(input)?;
+        match instruction {
+            PriceInstruction::Price => Self::process_price(accounts),
+            PriceInstruction::UpdateSettings {
+                admin,
+                updated_price,
+            } => Self::process_update_settings(accounts, admin, updated_price),
+        }
+    }
 
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub struct InstructionData {
-    pub updated_price: u64,
-}
+    fn process_price(accounts: &[AccountInfo]) -> ProgramResult {
+        msg!("process_price");
+        let acc_iter = &mut accounts.iter();
+        let price_info = next_account_info(acc_iter)?;
+        let settings_info = next_account_info(acc_iter)?;
 
-pub fn process_instruction(_program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]) -> ProgramResult {
-    msg!("update-state start: {:?}", instruction_data);
-    let account_info_iter = &mut accounts.iter();
-    let account = next_account_info(account_info_iter)?;
+        let settings = Settings::try_from_slice(&settings_info.data.borrow())?;
+        let mut price = Price::try_from_slice(&price_info.data.borrow())?;
 
-    msg!("account: {:?}", account);
-    let instruction = InstructionData::try_from_slice(instruction_data)?;
-    msg!("instruction: {:?}", instruction);
+        msg!("price is {:?}", price.value);
+        price.counter += 1;
+        Ok(())
+    }
 
-    let mut state = State::try_from_slice(&account.data.borrow())?;
-    msg!("prev state: {:?}", state);
+    fn process_update_settings(
+        accounts: &[AccountInfo],
+        admin: [u8; 32],
+        updated_price: u64,
+    ) -> ProgramResult {
+        msg!(
+            "process_update_settings: admin={:?} updated_price={:?}",
+            admin,
+            updated_price,
+        );
+        let acc_iter = &mut accounts.iter();
+        let admin_info = next_account_info(acc_iter)?;
+        let settings_info = next_account_info(acc_iter)?;
+        let rent_info = next_account_info(acc_iter)?;
+        let system_program_info = next_account_info(acc_iter)?;
 
-    state.counter += 1;
-    state.price = instruction.updated_price;
-    state.serialize(&mut &mut account.data.borrow_mut()[..]);
-    msg!("new state: {:?}", state);
+        let (settings_pubkey, bump_seed) = Settings::get_settings_pubkey();
+        if settings_info.data_is_empty() {
+            msg!("Creating settings account");
+            let settings = Settings {
+                admin: admin_info.key.to_bytes(),
+                updated_price,
+            };
+            let space = settings.try_to_vec()?.len();
+            let rent = &Rent::from_account_info(rent_info)?;
+            let lamports = rent.minimum_balance(space);
+            let signer_seeds: &[&[_]] = &[SETTINGS_SEED.as_bytes(), &[bump_seed]];
+            invoke_signed(
+                &system_instruction::create_account(
+                    admin_info.key,
+                    &settings_pubkey,
+                    lamports,
+                    space as u64,
+                    &id(),
+                ),
+                &[
+                    admin_info.clone(),
+                    settings_info.clone(),
+                    system_program_info.clone(),
+                ],
+                &[&signer_seeds],
+            )?;
+        }
 
-    msg!("data: {:?}", &account.data);
+        let mut settings = Settings::try_from_slice(&settings_info.data.borrow())?;
+        settings.admin = admin;
+        settings.updated_price = updated_price;
 
-    msg!("update-state finish");
-    Ok(())
+        let _ = settings.serialize(&mut &mut settings_info.data.borrow_mut()[..]);
+        msg!("process_update_settings: done");
+        Ok(())
+    }
 }
