@@ -3,6 +3,7 @@ use solana_program::pubkey::Pubkey;
 
 use crate::{id, PRICE_SEED, SETTINGS_SEED};
 
+
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub struct Price {
     pub counter: u32,
@@ -22,7 +23,7 @@ impl Price {
 #[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct Settings {
     pub admin: [u8; 32],
-    pub updated_price: u64,
+    pub updated_price: u32,
 }
 
 impl Settings {

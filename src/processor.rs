@@ -7,10 +7,11 @@ use solana_program::{
     pubkey::Pubkey,
     system_instruction,
     sysvar::{rent::Rent, Sysvar},
+    program_error::ProgramError
 };
 
 use crate::{id, SETTINGS_SEED};
-use crate::{instruction::PriceInstruction, state::Price, state::Settings};
+use crate::{instruction::PriceInstruction, state::Price, state::Settings, error::PriceError};
 pub struct Processor;
 
 impl Processor {
@@ -30,20 +31,35 @@ impl Processor {
         msg!("process_price");
         let acc_iter = &mut accounts.iter();
         let price_info = next_account_info(acc_iter)?;
+        let user_info = next_account_info(acc_iter)?;
         let settings_info = next_account_info(acc_iter)?;
 
-        let settings = Settings::try_from_slice(&settings_info.data.borrow())?;
+        if !user_info.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+        if !Price::is_pubkey_valid(user_info.key, price_info.key) {
+            return Err(PriceError::WrongCounterPDA.into());
+        }
+        if !Settings::is_pubkey_ok(settings_info.key) {
+            return Err(PriceError::WrongSettingsPDA.into());
+        }
+
         let mut price = Price::try_from_slice(&price_info.data.borrow())?;
+        
+        price.counter += 1;
+        price.value += 15;
 
         msg!("price is {:?}", price.value);
-        price.counter += 1;
+
+        let _ = price.serialize(&mut &mut price_info.data.borrow_mut()[..]);
+
         Ok(())
     }
 
     fn process_update_settings(
         accounts: &[AccountInfo],
         admin: [u8; 32],
-        updated_price: u64,
+        updated_price: u32,
     ) -> ProgramResult {
         msg!(
             "process_update_settings: admin={:?} updated_price={:?}",

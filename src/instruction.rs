@@ -13,7 +13,7 @@ use crate::{
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq)]
 pub enum PriceInstruction {
     Price,
-    UpdateSettings { admin: [u8; 32], updated_price: u64 },
+    UpdateSettings { admin: [u8; 32], updated_price: u32 },
 }
 
 impl PriceInstruction {
@@ -34,7 +34,7 @@ impl PriceInstruction {
     pub fn update_settings(
         admin: &Pubkey,
         new_admin: [u8; 32],
-        updated_price: u64,
+        updated_price: u32,
     ) -> Instruction {
         let (settings_pubkey, _) = Settings::get_settings_pubkey();
         Instruction::new_with_borsh(
