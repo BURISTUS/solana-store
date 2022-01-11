@@ -4,6 +4,7 @@ use solana_program::{
     pubkey::Pubkey,
     system_program, sysvar,
 };
+use solana_program::program_error::ProgramError;
 
 use crate::{
     id,
@@ -15,6 +16,7 @@ pub enum PriceInstruction {
     Price,
     UpdateSettings { admin: [u8; 32], updated_price: u32 },
 }
+
 
 impl PriceInstruction {
     pub fn price(user: &Pubkey) -> Instruction {

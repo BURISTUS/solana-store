@@ -88,8 +88,30 @@ impl Env {
         Env { ctx, admin, user }
     }
 }
+#[tokio::test]
+async fn test_price() {
+    let mut env = Env::new().await;
 
-//в поле дата остутствуют значения, посмотреть, исправить
+    let tx = Transaction::new_signed_with_payer(
+        &[PriceInstruction::price(&env.user.pubkey())],
+        Some(&env.user.pubkey()),
+        &[&env.user, &env.user],
+        env.ctx.last_blockhash,
+    );
+    env.ctx.banks_client.process_transaction(tx).await.unwrap();
+
+    let acc = env
+        .ctx
+        .banks_client
+        .get_account(Price::get_price_pubkey(&env.user.pubkey()))
+        .await
+        .unwrap()
+        .unwrap();
+    let price = Price::try_from_slice(acc.data.as_slice()).unwrap();
+    assert_eq!(price.counter, 1);
+    assert_eq!(price.value, 1);
+}
+
 #[tokio::test]
 async fn test_update_settings() {
     let mut env = Env::new().await;
@@ -111,27 +133,4 @@ async fn test_update_settings() {
         env.ctx.banks_client.get_account(Settings::get_settings_pub()).await.unwrap().unwrap();
     let settings = Settings::try_from_slice(&acc.data.as_slice()).unwrap();
     assert_eq!(settings.updated_price, 11);
-}
-#[tokio::test]
-async fn test_price() {
-    let mut env = Env::new().await;
-
-    let tx = Transaction::new_signed_with_payer(
-        &[PriceInstruction::price(&env.user.pubkey())],
-        Some(&env.user.pubkey()),
-        &[&env.user],
-        env.ctx.last_blockhash,
-    );
-    env.ctx.banks_client.process_transaction(tx).await.unwrap();
-
-    let acc = env
-        .ctx
-        .banks_client
-        .get_account(Price::get_price_pubkey(&env.user.pubkey()))
-        .await
-        .unwrap()
-        .unwrap();
-    let price = Price::try_from_slice(acc.data.as_slice()).unwrap();
-    assert_eq!(price.counter, 1);
-    assert_eq!(price.value, 1);
 }

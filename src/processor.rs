@@ -33,10 +33,10 @@ impl Processor {
         let price_info = next_account_info(acc_iter)?;
         let user_info = next_account_info(acc_iter)?;
         let settings_info = next_account_info(acc_iter)?;
+        // if !user_info.is_signer {
+        //     return Err(ProgramError::MissingRequiredSignature);
+        // }
 
-        if !user_info.is_signer {
-            return Err(ProgramError::MissingRequiredSignature);
-        }
         if !Price::is_pubkey_valid(user_info.key, price_info.key) {
             return Err(PriceError::WrongCounterPDA.into());
         }
