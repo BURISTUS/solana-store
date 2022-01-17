@@ -1,6 +1,6 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_store::{entrypoint::process_instruction, id, instruction::PriceInstruction};
+use solana_store::{entrypoint::process_instruction, id, instruction::StoreInstruction };
 use solana_store::{
     state::{Price, Settings},
     PRICE_SEED,
@@ -49,10 +49,10 @@ impl Env {
 
         // init settings account
         let tx = Transaction::new_signed_with_payer(
-            &[PriceInstruction::update_settings(
+            &[StoreInstruction::update_settings(
                 &admin.pubkey(),
                 admin.pubkey().to_bytes(),
-                25,
+                10,
             )],
             Some(&admin.pubkey()),
             &[&admin],
@@ -63,9 +63,9 @@ impl Env {
         let acc =
             ctx.banks_client.get_account(Settings::get_settings_pub()).await.unwrap().unwrap();
         let settings = Settings::try_from_slice(acc.data.as_slice()).unwrap();
-        assert_eq!(settings.updated_price, 25);
+        assert_eq!(settings.updated_price, 10);
 
-        let space = Price { counter: 5, value: 5 }.try_to_vec().unwrap().len();
+        let space = Price { counter: 0, value: 25 }.try_to_vec().unwrap().len();
         let rent = ctx.banks_client.get_rent().await.unwrap();
         let lamports = rent.minimum_balance(space);
         let ix = system_instruction::create_account_with_seed(
@@ -93,7 +93,7 @@ async fn test_price() {
     let mut env = Env::new().await;
 
     let tx = Transaction::new_signed_with_payer(
-        &[PriceInstruction::price(&env.user.pubkey())],
+        &[StoreInstruction::initialize_store(&env.user.pubkey())],
         Some(&env.user.pubkey()),
         &[&env.user, &env.user],
         env.ctx.last_blockhash,
@@ -109,7 +109,8 @@ async fn test_price() {
         .unwrap();
     let price = Price::try_from_slice(acc.data.as_slice()).unwrap();
     assert_eq!(price.counter, 1);
-    assert_eq!(price.value, 1);
+    assert_eq!(price.value, 15);
+    println!("price is {:?}", price);
 }
 
 #[tokio::test]
@@ -117,7 +118,7 @@ async fn test_update_settings() {
     let mut env = Env::new().await;
 
     let tx = Transaction::new_signed_with_payer(
-        &[PriceInstruction::update_settings(
+        &[StoreInstruction::update_settings(
             &env.admin.pubkey(),
             *&env.admin.pubkey().to_bytes(),
             11,

@@ -8,6 +8,7 @@ edition = "2018"
 borsh = "0.9.0"
 solana-program = "1.8.8"
 thiserror = "1.0.30"
+spl-token = { version = "3.2.0",  features = ["no-entrypoint"] }
 
 [dev-dependencies]
 solana-program-test = "1.8.8"

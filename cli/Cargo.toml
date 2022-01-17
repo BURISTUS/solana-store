@@ -1,0 +1,21 @@
+[package]
+name = "sol-store_cli"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.51"
+clap = "2.33.3"
+solana_store = { path = "../Program" }
+solana-clap-utils = "1.8.6"
+solana-client = "1.8.6"
+solana-sdk = "1.8.6"
+spl-token = { version = "3.2.0", features = [ "no-entrypoint" ] }
+thiserror = "1.0.29"
+
+[dev-dependencies]
+rand = "0.8.4"
+
+[[bin]]
+name = "rpg"
+path = "src/main.rs"

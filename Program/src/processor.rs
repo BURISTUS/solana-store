@@ -3,7 +3,7 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
-    program::invoke_signed,
+    program::{invoke_signed, invoke},
     pubkey::Pubkey,
     system_instruction,
     sysvar::{rent::Rent, Sysvar},
@@ -11,31 +11,35 @@ use solana_program::{
 };
 
 use crate::{id, SETTINGS_SEED};
-use crate::{instruction::PriceInstruction, state::Price, state::Settings, error::PriceError};
+use crate::{instruction::StoreInstruction, state::Price, state::Settings, error::PriceError};
+
+
+
 pub struct Processor;
 
 impl Processor {
     pub fn process(_program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
         msg!("price: {:?}", input);
-        let instruction = PriceInstruction::try_from_slice(input)?;
+        let instruction = StoreInstruction::try_from_slice(input)?;
         match instruction {
-            PriceInstruction::Price => Self::process_price(accounts),
-            PriceInstruction::UpdateSettings {
+            StoreInstruction::InitializeStore => Self::process_initialize_store(accounts),
+            StoreInstruction::UpdateSettings {
                 admin,
                 updated_price,
             } => Self::process_update_settings(accounts, admin, updated_price),
         }
     }
 
-    fn process_price(accounts: &[AccountInfo]) -> ProgramResult {
+    fn process_initialize_store(accounts: &[AccountInfo]) -> ProgramResult {
         msg!("process_price");
         let acc_iter = &mut accounts.iter();
-        let price_info = next_account_info(acc_iter)?;
         let user_info = next_account_info(acc_iter)?;
+        let price_info = next_account_info(acc_iter)?;
         let settings_info = next_account_info(acc_iter)?;
-        // if !user_info.is_signer {
-        //     return Err(ProgramError::MissingRequiredSignature);
-        // }
+
+        if !user_info.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
 
         if !Price::is_pubkey_valid(user_info.key, price_info.key) {
             return Err(PriceError::WrongCounterPDA.into());
@@ -108,4 +112,85 @@ impl Processor {
         msg!("process_update_settings: done");
         Ok(())
     }
+
+    fn process_buy(
+        accounts: &[AccountInfo],
+    ) -> ProgramResult {
+        let acc_iter = &mut accounts.iter();
+        let store_info = next_account_info(acc_iter)?;
+        let store_token_info = next_account_info(acc_iter)?;
+        let user_info = next_account_info(acc_iter)?;
+        let user_token_info = next_account_info(acc_iter)?;
+        let token_info = next_account_info(acc_iter)?;
+
+        msg!("transfer: {}", amount);
+        let ix = spl_token::instruction::transfer(
+            token_info.key,
+            store_token_info.key,
+            user_token_info.key,
+            store_info.key,
+            &[store_info.key],
+            amount,
+        )?;
+        invoke(
+            &ix,
+            &[
+                store_token_info.clone(),
+                user_token_info.clone(),
+                store_info.clone(),
+                token_info.clone(),
+            ],
+        )?;
+        let ixs = system_instruction::transfer(
+            user_info.key,
+            store_info.key,
+            amount,
+        );
+
+        invoke(
+            &ixs,
+            &[user_info.clone(), store_info.clone()]
+        )
+    }
+    fn process_sell(
+        accounts: &[AccountInfo]
+    ) -> ProgramResult {
+        let acc_iter = &mut accounts.iter();
+        let store_info = next_account_info(acc_iter)?;
+        let store_token_info = next_account_info(acc_iter)?;
+        let user_info = next_account_info(acc_iter)?;
+        let user_token_info = next_account_info(acc_iter)?;
+        let token_info = next_account_info(acc_iter)?;
+
+        msg!("transfer: {}", amount);
+        let ix = spl_token::instruction::transfer(
+            token_info.key,
+            user_token_info.key,
+            store_token_info.key,
+            user_info.key,
+            &[user_info.key],
+            amount,
+        )?;
+        invoke(
+            &ix,
+            &[
+                user_token_info.clone(),
+                store_token_info.clone(),
+                user_info.clone(),
+                token_info.clone(),
+            ],
+        )?;
+        let ixs = system_instruction::transfer(
+            store_info.key,
+            user_info.key,
+            amount,
+        );
+
+        invoke(
+            &ixs,
+            &[store_info.clone(), user_info.clone()]
+        )
+    }
 }
+
+

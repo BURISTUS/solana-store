@@ -31,6 +31,9 @@ pub enum PriceError {
 
     #[error("Wrong settings PDA")]
     WrongSettingsPDA,
+
+    #[error("Invalud Instruction")]
+    InvalidInstruction
 }
 
 impl From<PriceError> for ProgramError {
