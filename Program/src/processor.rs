@@ -27,6 +27,8 @@ impl Processor {
                 admin,
                 updated_price,
             } => Self::process_update_settings(accounts, admin, updated_price),
+            StoreInstruction::Buy { amount } => Self::process_buy(accounts),
+            StoreInstruction::Sell { amount } => Self::process_sell(accounts)
         }
     }
 
@@ -123,14 +125,13 @@ impl Processor {
         let user_token_info = next_account_info(acc_iter)?;
         let token_info = next_account_info(acc_iter)?;
 
-        msg!("transfer: {}", amount);
         let ix = spl_token::instruction::transfer(
             token_info.key,
             store_token_info.key,
             user_token_info.key,
             store_info.key,
             &[store_info.key],
-            amount,
+            10,
         )?;
         invoke(
             &ix,
@@ -144,13 +145,14 @@ impl Processor {
         let ixs = system_instruction::transfer(
             user_info.key,
             store_info.key,
-            amount,
+            10,
         );
 
         invoke(
             &ixs,
             &[user_info.clone(), store_info.clone()]
-        )
+        );
+        Ok(())
     }
     fn process_sell(
         accounts: &[AccountInfo]
@@ -162,14 +164,13 @@ impl Processor {
         let user_token_info = next_account_info(acc_iter)?;
         let token_info = next_account_info(acc_iter)?;
 
-        msg!("transfer: {}", amount);
         let ix = spl_token::instruction::transfer(
             token_info.key,
             user_token_info.key,
             store_token_info.key,
             user_info.key,
             &[user_info.key],
-            amount,
+            10,
         )?;
         invoke(
             &ix,
@@ -183,13 +184,14 @@ impl Processor {
         let ixs = system_instruction::transfer(
             store_info.key,
             user_info.key,
-            amount,
+            10,
         );
 
         invoke(
             &ixs,
             &[store_info.clone(), user_info.clone()]
-        )
+        );
+        Ok(())
     }
 }
 

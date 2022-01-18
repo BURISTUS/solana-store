@@ -58,7 +58,7 @@ impl StoreInstruction {
         let (settings_pubkey, _) = Settings::get_settings_pubkey();
         Instruction::new_with_borsh(
             id(),
-            &StoreInstruction::Price,
+            &StoreInstruction::InitializeStore,
             vec![
                 AccountMeta::new_readonly(*user, true),
                 AccountMeta::new(price_pubkey, false),
@@ -87,13 +87,13 @@ impl StoreInstruction {
             ],
         )
     }
-
     pub fn buy(
         pool_owner: &Pubkey,
         user: &Pubkey,
         admin_token_account: &Pubkey,
         user_token_account: &Pubkey,
         token_program: &Pubkey,
+        amount: u64,
     ) -> Instruction {
         Instruction::new_with_borsh(
             id(),
@@ -101,7 +101,7 @@ impl StoreInstruction {
                 amount
             },
             vec![
-                AccountMeta::new(*admin, true),
+                AccountMeta::new(*pool_owner, true),
                 AccountMeta::new(*user, false),
                 AccountMeta::new(*admin_token_account, false),
                 AccountMeta::new(*user_token_account, false),
@@ -117,6 +117,7 @@ impl StoreInstruction {
         admin_token_account: &Pubkey,
         user_token_account: &Pubkey,
         token_program: &Pubkey,
+        amount: u64,
     ) -> Instruction {
         Instruction::new_with_borsh(
             id(),
@@ -124,7 +125,7 @@ impl StoreInstruction {
                 amount
             },
             vec![
-                AccountMeta::new(*admin, true),
+                AccountMeta::new(*pool_owner, true),
                 AccountMeta::new(*user, false),
                 AccountMeta::new(*admin_token_account, false),
                 AccountMeta::new(*user_token_account, false),
@@ -133,5 +134,50 @@ impl StoreInstruction {
             ]
         )
     }
-
 }
+
+// pub fn buy(
+//     pool_owner: &Pubkey,
+//     user: &Pubkey,
+//     admin_token_account: &Pubkey,
+//     user_token_account: &Pubkey,
+//     token_program: &Pubkey,
+// ) -> Instruction {
+//     Instruction::new_with_borsh(
+//         id(),
+//         &StoreInstruction::Buy {
+//             amount
+//         },
+//         vec![
+//             AccountMeta::new(*admin, true),
+//             AccountMeta::new(*user, false),
+//             AccountMeta::new(*admin_token_account, false),
+//             AccountMeta::new(*user_token_account, false),
+//             AccountMeta::new(*token_program, false),
+//             AccountMeta::new_readonly(spl_token::id(), false)
+//         ]
+//     )
+// }
+//
+// pub fn sell(
+//     pool_owner: &Pubkey,
+//     user: &Pubkey,
+//     admin_token_account: &Pubkey,
+//     user_token_account: &Pubkey,
+//     token_program: &Pubkey,
+// ) -> Instruction {
+//     Instruction::new_with_borsh(
+//         id(),
+//         &StoreInstruction::Buy {
+//             amount
+//         },
+//         vec![
+//             AccountMeta::new(*admin, true),
+//             AccountMeta::new(*user, false),
+//             AccountMeta::new(*admin_token_account, false),
+//             AccountMeta::new(*user_token_account, false),
+//             AccountMeta::new(*token_program, false),
+//             AccountMeta::new_readonly(spl_token::id(), false)
+//         ]
+//     )
+// }
