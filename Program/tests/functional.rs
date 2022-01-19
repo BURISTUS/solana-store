@@ -21,133 +21,6 @@ use solana_program_test::*;
 use solana_sdk::{ transaction::TransactionError, transport::TransportError};
 use spl_token::{error::TokenError, ui_amount_to_amount};
 
-struct Env {
-    ctx: ProgramTestContext,
-    admin: Keypair,
-    user: Keypair,
-}
-
-impl Env {
-    async fn new() -> Self {
-        let program_test = ProgramTest::new("solana_store", id(), processor!(process_instruction));
-        let mut ctx = program_test.start_with_context().await;
-
-        let admin = Keypair::new();
-        let user = Keypair::new();
-
-        // credit admin and user accounts
-        ctx.banks_client
-            .process_transaction(Transaction::new_signed_with_payer(
-                &[
-                    system_instruction::transfer(
-                        &ctx.payer.pubkey(),
-                        &admin.pubkey(),
-                        1_000_000_000,
-                    ),
-                    system_instruction::transfer(
-                        &ctx.payer.pubkey(),
-                        &user.pubkey(),
-                        1_000_000_000,
-                    ),
-                ],
-                Some(&ctx.payer.pubkey()),
-                &[&ctx.payer],
-                ctx.last_blockhash,
-            ))
-            .await
-            .unwrap();
-
-        // init settings account
-        let tx = Transaction::new_signed_with_payer(
-            &[StoreInstruction::update_price(
-                &admin.pubkey(),
-                admin.pubkey().to_bytes(),
-                10,
-            )],
-            Some(&admin.pubkey()),
-            &[&admin],
-            ctx.last_blockhash,
-        );
-        ctx.banks_client.process_transaction(tx).await.unwrap();
-
-        let acc =
-            ctx.banks_client.get_account(Settings::get_settings_pub()).await.unwrap().unwrap();
-        let settings = Settings::try_from_slice(acc.data.as_slice()).unwrap();
-        assert_eq!(settings.updated_price, 10);
-
-        let space = Price { counter: 0, value: 25 }.try_to_vec().unwrap().len();
-        let rent = ctx.banks_client.get_rent().await.unwrap();
-        let lamports = rent.minimum_balance(space);
-        let ix = system_instruction::create_account_with_seed(
-            &user.pubkey(),
-            &Price::get_price_pubkey(&user.pubkey()),
-            &user.pubkey(),
-            PRICE_SEED,
-            lamports,
-            space as u64,
-            &id(),
-        );
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&user.pubkey()),
-            &[&user],
-            ctx.last_blockhash,
-        );
-        ctx.banks_client.process_transaction(tx).await.unwrap();
-
-        Env { ctx, admin, user }
-    }
-}
-#[tokio::test]
-async fn test_price() {
-    let mut env = Env::new().await;
-
-    let tx = Transaction::new_signed_with_payer(
-        &[StoreInstruction::initialize_store(&env.user.pubkey())],
-        Some(&env.user.pubkey()),
-        &[&env.user, &env.user],
-        env.ctx.last_blockhash,
-    );
-    env.ctx.banks_client.process_transaction(tx).await.unwrap();
-
-    let acc = env
-        .ctx
-        .banks_client
-        .get_account(Price::get_price_pubkey(&env.user.pubkey()))
-        .await
-        .unwrap()
-        .unwrap();
-    let price = Price::try_from_slice(acc.data.as_slice()).unwrap();
-    assert_eq!(price.counter, 1);
-    assert_eq!(price.value, 15);
-    println!("price is {:?}", price);
-}
-
-#[tokio::test]
-async fn test_update_settings() {
-    let mut env = Env::new().await;
-
-    let tx = Transaction::new_signed_with_payer(
-        &[StoreInstruction::update_price(
-            &env.admin.pubkey(),
-            *&env.admin.pubkey().to_bytes(),
-            11,
-        )],
-        Some(&env.admin.pubkey()),
-        &[&env.admin],
-        env.ctx.last_blockhash,
-    );
-
-    env.ctx.banks_client.process_transaction(tx).await.unwrap();
-
-    let acc =
-        env.ctx.banks_client.get_account(Settings::get_settings_pub()).await.unwrap().unwrap();
-    let settings = Settings::try_from_slice(&acc.data.as_slice()).unwrap();
-    assert_eq!(settings.updated_price, 11);
-}
-
-
-
 
 async fn create_token_mint(
     banks_client: &mut BanksClient,
@@ -243,6 +116,7 @@ async fn mint_token(
     Ok(())
 }
 
+
 #[tokio::test]
 async fn test_transaction() {
     let program = ProgramTest::new("solana_store", id(), processor!(process_instruction));
@@ -260,6 +134,7 @@ async fn test_transaction() {
 
     let pool_custom_token_acc = Keypair::new();
     let pool_owner = Keypair::new();
+    let user = Keypair::new();
     let user_token_account = Keypair::new();
 
     let user_initial_token_ui_amount = 500000.0;
@@ -319,16 +194,13 @@ async fn test_transaction() {
     println!("custom token");
 
     let mut transaction = Transaction::new_with_payer(
-        &[Instruction::new_with_bincode(
-            id(),
-            &(),
-            vec![
-                AccountMeta::new(pool_owner.pubkey(), true),
-                AccountMeta::new(pool_custom_token_acc.pubkey(), false),
-                AccountMeta::new(user_token_account.pubkey(), false),
-                AccountMeta::new(custom_token_mint.pubkey(), false),
-                AccountMeta::new_readonly(spl_token::id(), false),
-            ],
+        &[StoreInstruction::buy(
+            &pool_owner.pubkey(),
+            &user.pubkey(),
+            &pool_custom_token_acc.pubkey(),
+            &user_token_account.pubkey(),
+            &custom_token_mint.pubkey(),
+            10
         )],
         Some(&payer.pubkey()),
     );
