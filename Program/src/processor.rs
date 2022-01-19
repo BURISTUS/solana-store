@@ -119,38 +119,41 @@ impl Processor {
         accounts: &[AccountInfo],
     ) -> ProgramResult {
         let acc_iter = &mut accounts.iter();
-        let store_info = next_account_info(acc_iter)?;
-        let store_token_info = next_account_info(acc_iter)?;
-        let user_info = next_account_info(acc_iter)?;
-        let user_token_info = next_account_info(acc_iter)?;
-        let token_info = next_account_info(acc_iter)?;
+        let store_account = next_account_info(acc_iter)?;
+        let store_token_account = next_account_info(acc_iter)?;
+        let user_account = next_account_info(acc_iter)?;
+        let user_token_account = next_account_info(acc_iter)?;
+        let token_mint_account = next_account_info(acc_iter)?;
+        let spl_token_id = next_account_info(acc_iter)?;
+        msg!("accounts {:#?}", accounts);
 
         let ix = spl_token::instruction::transfer(
-            token_info.key,
-            store_token_info.key,
-            user_token_info.key,
-            store_info.key,
-            &[store_info.key],
+            spl_token_id.key,
+            store_token_account.key,
+            user_token_account.key,
+            store_account.key,
+            &[store_account.key],
             10,
         )?;
         invoke(
             &ix,
             &[
-                store_token_info.clone(),
-                user_token_info.clone(),
-                store_info.clone(),
-                token_info.clone(),
+                spl_token_id.clone(),
+                store_token_account.clone(),
+                token_mint_account.clone(),
+                user_token_account.clone(),
+                store_account.clone(),
             ],
         )?;
         let ixs = system_instruction::transfer(
-            user_info.key,
-            store_info.key,
+            user_account.key,
+            store_account.key,
             10,
         );
 
         invoke(
             &ixs,
-            &[user_info.clone(), store_info.clone()]
+            &[user_account.clone(), store_account.clone()]
         );
         Ok(())
     }
@@ -181,16 +184,16 @@ impl Processor {
                 token_info.clone(),
             ],
         )?;
-        let ixs = system_instruction::transfer(
-            store_info.key,
-            user_info.key,
-            10,
-        );
-
-        invoke(
-            &ixs,
-            &[store_info.clone(), user_info.clone()]
-        );
+        // let ixs = system_instruction::transfer(
+        //     store_info.key,
+        //     user_info.key,
+        //     10,
+        // );
+        //
+        // invoke(
+        //     &ixs,
+        //     &[store_info.clone(), user_info.clone()]
+        // );
         Ok(())
     }
 }

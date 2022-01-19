@@ -19,6 +19,7 @@ use solana_program::{
 };
 use solana_program_test::*;
 use solana_sdk::{ transaction::TransactionError, transport::TransportError};
+use solana_sdk::account::Account;
 use spl_token::{error::TokenError, ui_amount_to_amount};
 
 
@@ -118,29 +119,39 @@ async fn mint_token(
 
 
 #[tokio::test]
-async fn test_transaction() {
-    let program = ProgramTest::new("solana_store", id(), processor!(process_instruction));
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+async fn test_buy() {
+    let mut program = ProgramTest::new("solana_store", id(), processor!(process_instruction));
 
-    let rent = banks_client.get_rent().await.unwrap();
-    let account_rent = rent.minimum_balance(spl_token::state::Account::LEN);
-    let mint_rent = rent.minimum_balance(spl_token::state::Mint::LEN);
 
     let custom_token_mint = Keypair::new();
     println!("{:?}", custom_token_mint);
     let custom_mint_authority = Keypair::new();
     println!("{:?}", custom_mint_authority);
     let decimals = 9;
-
+    let user = Keypair::new();
     let pool_custom_token_acc = Keypair::new();
     let pool_owner = Keypair::new();
-    let user = Keypair::new();
+    *&program.add_account(
+        user.pubkey(),
+        Account {
+            lamports:5000,
+            owner: id(),
+            ..Account::default()
+        },
+    );
     let user_token_account = Keypair::new();
 
     let user_initial_token_ui_amount = 500000.0;
     let user_initial_token_amount = ui_amount_to_amount(user_initial_token_ui_amount, decimals);
     let user_wallet = Keypair::new();
     let user_token_account = Keypair::new();
+
+    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+
+    let rent = banks_client.get_rent().await.unwrap();
+    let account_rent = rent.minimum_balance(spl_token::state::Account::LEN);
+    let mint_rent = rent.minimum_balance(spl_token::state::Mint::LEN);
+
 
     create_token_mint(
         &mut banks_client,
@@ -207,3 +218,105 @@ async fn test_transaction() {
     transaction.sign(&[&payer, &pool_owner], recent_blockhash);
     banks_client.process_transaction(transaction).await.unwrap();
 }
+
+#[tokio::test]
+async fn test_sell() {
+    let mut program = ProgramTest::new("solana_store", id(), processor!(process_instruction));
+
+
+    let custom_token_mint = Keypair::new();
+    println!("{:?}", custom_token_mint);
+    let custom_mint_authority = Keypair::new();
+    println!("{:?}", custom_mint_authority);
+    let decimals = 9;
+    // let user = Keypair::new();
+    let pool_custom_token_acc = Keypair::new();
+    let pool_owner = Keypair::new();
+    // *&program.add_account(
+    //     user.pubkey(),
+    //     Account {
+    //         lamports:5000,
+    //         owner: id(),
+    //         ..Account::default()
+    //     },
+    // );
+    let user_token_account = Keypair::new();
+
+    let user_initial_token_ui_amount = 500000.0;
+    let user_initial_token_amount = ui_amount_to_amount(user_initial_token_ui_amount, decimals);
+    let user_wallet = Keypair::new();
+    let user_token_account = Keypair::new();
+
+    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+
+    let rent = banks_client.get_rent().await.unwrap();
+    let account_rent = rent.minimum_balance(spl_token::state::Account::LEN);
+    let mint_rent = rent.minimum_balance(spl_token::state::Mint::LEN);
+
+
+    create_token_mint(
+        &mut banks_client,
+        &payer,
+        &recent_blockhash,
+        mint_rent,
+        decimals,
+        &custom_token_mint,
+        &custom_mint_authority.pubkey(),
+    )
+        .await
+        .unwrap();
+
+    create_token_account(
+        &mut banks_client,
+        &payer,
+        &recent_blockhash,
+        &pool_custom_token_acc,
+        account_rent,
+        &custom_token_mint.pubkey(),
+        &pool_owner.pubkey(),
+    )
+        .await
+        .unwrap();
+
+    create_token_account(
+        &mut banks_client,
+        &payer,
+        &recent_blockhash,
+        &user_token_account,
+        account_rent,
+        &custom_token_mint.pubkey(),
+        &user_wallet.pubkey(),
+    )
+        .await
+        .unwrap();
+
+    mint_token(
+        &mut banks_client,
+        &payer,
+        &recent_blockhash,
+        user_initial_token_amount,
+        &custom_token_mint.pubkey(),
+        &pool_custom_token_acc.pubkey(),
+        &custom_mint_authority,
+    )
+        .await
+        .unwrap();
+
+    println!("user token account {:?}", user_initial_token_amount);
+    println!("custom token");
+
+    let mut transaction = Transaction::new_with_payer(
+        &[StoreInstruction::sell(
+            &pool_owner.pubkey(),
+            // &user.pubkey(),
+            &pool_custom_token_acc.pubkey(),
+            &user_token_account.pubkey(),
+            &custom_token_mint.pubkey(),
+            10
+        )],
+        Some(&payer.pubkey()),
+    );
+    transaction.sign(&[&payer, &pool_owner], recent_blockhash);
+    banks_client.process_transaction(transaction).await.unwrap();
+}
+

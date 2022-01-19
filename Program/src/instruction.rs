@@ -112,7 +112,7 @@ impl StoreInstruction {
     }
 
     pub fn sell(
-        pool_owner: &Pubkey,
+        // pool_owner: &Pubkey,
         user: &Pubkey,
         admin_token_account: &Pubkey,
         user_token_account: &Pubkey,
@@ -125,8 +125,8 @@ impl StoreInstruction {
                 amount
             },
             vec![
-                AccountMeta::new(*pool_owner, true),
-                AccountMeta::new(*user, false),
+                // AccountMeta::new(*pool_owner, true),
+                AccountMeta::new(*user, true),
                 AccountMeta::new(*admin_token_account, false),
                 AccountMeta::new(*user_token_account, false),
                 AccountMeta::new(*token_program, false),
