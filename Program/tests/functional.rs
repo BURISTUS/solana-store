@@ -124,9 +124,9 @@ async fn test_buy() {
 
 
     let token_mint_account = Keypair::new();
-    println!("{:?}", custom_token_mint);
+    // println!("{:?}", custom_token_mint);
     let token_mint_authority = Keypair::new();
-    println!("{:?}", custom_mint_authority);
+    // println!("{:?}", custom_mint_authority);
     let decimals = 9;
     let user_account = Keypair::new();
     let pool_token_account = Keypair::new();
@@ -171,7 +171,7 @@ async fn test_buy() {
         &recent_blockhash,
         &pool_token_account,
         account_rent,
-        &custom_token_mint.pubkey(),
+        &token_mint_account.pubkey(),
         &pool_owner.pubkey(),
     )
         .await
@@ -183,7 +183,7 @@ async fn test_buy() {
         &recent_blockhash,
         &user_token_account,
         account_rent,
-        &custom_token_mint.pubkey(),
+        &token_mint_account.pubkey(),
         &user_account.pubkey(),
     )
         .await
@@ -194,9 +194,9 @@ async fn test_buy() {
         &payer,
         &recent_blockhash,
         user_token_amount,
-        &custom_token_mint.pubkey(),
+        &token_mint_account.pubkey(),
         &pool_token_account.pubkey(),
-        &custom_mint_authority,
+        &token_mint_authority,
     )
         .await
         .unwrap();
@@ -210,7 +210,7 @@ async fn test_buy() {
             &user_account.pubkey(),
             &pool_token_account.pubkey(),
             &user_token_account.pubkey(),
-            &custom_token_mint.pubkey(),
+            &token_mint_account.pubkey(),
             10
         )],
         Some(&payer.pubkey()),
